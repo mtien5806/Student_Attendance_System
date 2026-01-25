@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from getpass import getpass
 from typing import Optional
 
 
@@ -38,7 +37,8 @@ class ConsoleIO:
 
     @staticmethod
     def ask_password(prompt: str = "Password: ") -> str:
-        return getpass(prompt)
+        return input(prompt).strip()
+
 
     @staticmethod
     def confirm(prompt: str = "Confirm (Y/N): ") -> bool:

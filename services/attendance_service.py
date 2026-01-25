@@ -18,9 +18,6 @@ from services.id_generator import IdGenerator
 class AttendanceService:
     db: Database
 
-    # -----------------------
-    # Dashboard counters
-    # -----------------------
     def count_warnings(self, student_user_id: str) -> int:
         row = self.db.query_one("SELECT COUNT(*) AS c FROM Warning WHERE StudentUserID=?", (student_user_id,))
         return int(row["c"]) if row else 0
@@ -39,9 +36,7 @@ class AttendanceService:
         )
         return int(row["c"]) if row else 0
 
-    # -----------------------
-    # Sessions
-    # -----------------------
+
     def create_session(
         self,
         *,
@@ -75,7 +70,7 @@ class AttendanceService:
             return False
         session.status = "CLOSED"
         session.save(self.db)
-        # Ensure Absent records for non-check-in students (spec 8.6.2)
+        # Ensure Absent records for non-check-in students 
         self._ensure_absent_records_on_close(session=session)
         # After close, run warning checks
         self.generate_warnings_for_all_students(class_name=session.class_name, threshold_absent=3)
@@ -112,9 +107,7 @@ class AttendanceService:
                 pass
         return True
 
-    # -----------------------
-    # Student check-in / view
-    # -----------------------
+
     def student_check_in(self, *, student_user_id: str, session_id: str, pin: Optional[str]) -> tuple[bool, str]:
         session = AttendanceSession.load_by_id(self.db, session_id)
         if not session:
@@ -194,9 +187,7 @@ class AttendanceService:
             )
         return items, summary
 
-    # -----------------------
-    # Requests
-    # -----------------------
+  
     def submit_request(
         self,
         *,
@@ -275,9 +266,6 @@ class AttendanceService:
         return True, f"Request {new_status}."
 
 
-    # -----------------------
-    # Lecturer record / summary / export
-    # -----------------------
     def list_session_students(self, session_id: str) -> list[dict]:
         # Show current records for a session
         rows = self.db.query_all(
@@ -425,11 +413,8 @@ class AttendanceService:
             return False, f"Export failed: {e}"
         return True, "Export completed successfully."
 
-    # -----------------------
-    # Warnings
-    # -----------------------
     def generate_warnings_for_all_students(self, *, class_name: str, threshold_absent: int = 3) -> None:
-        # Find students whose Absent count for this class >= threshold_absent
+    
         rows = self.db.query_all(
             """
             SELECT ar.StudentUserID, COUNT(*) AS AbsentCount
@@ -447,7 +432,6 @@ class AttendanceService:
         gen = IdGenerator(self.db)
         for r in rows:
             student_uid = r["StudentUserID"]
-            # Avoid duplicate message per threshold hit (simple rule: one warning per class per threshold)
             existed = self.db.query_one(
                 """
                 SELECT 1 FROM Warning
@@ -470,9 +454,6 @@ class AttendanceService:
             ).save(self.db)
 
 
-    # -----------------------
-    # Admin search / manage
-    # -----------------------
     def search_attendance_records(
         self,
         *,

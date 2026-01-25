@@ -17,7 +17,7 @@ class AttendanceSession:
     status: str  # OPEN/CLOSED
     created_at: str  # ISO datetime (UTC)
 
-    # Optional fields (added by ensure_schema_extras)
+    # Optional fields
     start_time: Optional[str] = None  # HH:MM
     duration_minutes: Optional[int] = None
     require_pin: bool = False

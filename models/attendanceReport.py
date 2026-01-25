@@ -73,7 +73,7 @@ class AttendanceReport:
             title=row["title"],
         )
 
-    # stubs
+
     def generate(self, session_id: str) -> None:
         raise NotImplementedError("Will be implemented with summary/export workflows")
 

@@ -10,7 +10,7 @@ from Database.database import Database, utc_now_iso
 class LeaveRequest:
     """Absence/Late request (spec 8.5.3, 8.6.3)."""
 
-    request_id: str  # R012 style handled by service
+    request_id: str  
     student_user_id: str
     lecturer_user_id: str
     session_id: Optional[str]

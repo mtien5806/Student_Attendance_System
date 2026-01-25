@@ -1,15 +1,3 @@
-"""SQLite database layer for the Student Attendance System (SAS).
-
-Implements:
-- Connection management (SQLite)
-- Schema initialization based on the ERD in the design document
-- Small helpers for executing queries
-- Password hashing/verification helpers
-
-Only the DB + model layer is implemented for now (UI / workflows will be
-added later).
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -32,11 +20,6 @@ def utc_now_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat(sep=" ")
 
 
-# -----------------------------
-# Password hashing helpers
-# -----------------------------
-
-
 @dataclass(frozen=True)
 class PasswordHash:
     algo: str
@@ -45,7 +28,6 @@ class PasswordHash:
     hash_hex: str
 
     def encode(self) -> str:
-        # Format: pbkdf2_sha256$<iterations>$<salt_hex>$<hash_hex>
         return f"{self.algo}${self.iterations}${self.salt_hex}${self.hash_hex}"
 
 
@@ -76,11 +58,6 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
 
 
-# -----------------------------
-# Database
-# -----------------------------
-
-
 class Database:
     """Thin wrapper around sqlite3 with schema initialization."""
 
@@ -88,7 +65,6 @@ class Database:
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
-        # Ensure FK constraints
         self.conn.execute("PRAGMA foreign_keys = ON;")
 
     def close(self) -> None:
@@ -115,7 +91,6 @@ class Database:
     def initialize(self) -> None:
         """Create tables if they don't already exist."""
 
-        # NOTE: SQLite uses TEXT for VARCHAR; we keep names close to the ERD.
         self.execute(
             """
             CREATE TABLE IF NOT EXISTS User (
@@ -265,7 +240,7 @@ class Database:
             rows = self.query_all(f"PRAGMA table_info({table});")
             return any(r["name"] == col for r in rows)
 
-        # AttendanceSession extras
+
         try:
             if not has_column("AttendanceSession", "startTime"):
                 self.execute("ALTER TABLE AttendanceSession ADD COLUMN startTime TEXT;")
@@ -276,10 +251,10 @@ class Database:
             if not has_column("AttendanceSession", "pin"):
                 self.execute("ALTER TABLE AttendanceSession ADD COLUMN pin TEXT;")
         except Exception:
-            # SQLite can't ALTER TABLE in some edge cases; ignore for safety.
+       
             pass
 
-        # LeaveRequest extras
+  
         try:
             if not has_column("LeaveRequest", "SessionID"):
                 self.execute("ALTER TABLE LeaveRequest ADD COLUMN SessionID TEXT;")
@@ -290,14 +265,14 @@ class Database:
         except Exception:
             pass
 
-        # Warning extras
+
         try:
             if not has_column("Warning", "className"):
                 self.execute("ALTER TABLE Warning ADD COLUMN className TEXT;")
         except Exception:
             pass
 
-        # Helpful indexes
+
         try:
             self.execute("CREATE INDEX IF NOT EXISTS idx_record_session ON AttendanceRecord(SessionID);")
             self.execute("CREATE INDEX IF NOT EXISTS idx_record_student ON AttendanceRecord(StudentUserID);")

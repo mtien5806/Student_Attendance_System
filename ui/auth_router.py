@@ -63,7 +63,7 @@ class AuthRouter:
             AdminUI(self.db, a).run()  # type: ignore[arg-type]
             return
 
-        # Unknown role: simple profile screen
+      
         ConsoleIO.screen("USER")
         print(f"User: {user.full_name} (ID: {user.user_id})")
         print(DASH)

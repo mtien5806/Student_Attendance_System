@@ -51,7 +51,7 @@ class Lecturer(User):
             lecturer_id=row["LecturerID"],
         )
 
-    # stubs (workflow sau)
+ 
     def create_attendance_session(self, date: str) -> None:
         raise NotImplementedError("Workflow/UI will be implemented later")
 

@@ -12,7 +12,7 @@ class Table:
     rows: Sequence[Sequence[str]]
 
     def render(self) -> None:
-        # Simple fixed-width table (console friendly)
+       
         widths = [len(h) for h in self.headers]
         for row in self.rows:
             for i, cell in enumerate(row):

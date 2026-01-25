@@ -51,7 +51,7 @@ class Administrator(User):
             admin_id=row["AdminID"],
         )
 
-    # stubs (workflow sau)
+
     def manage_attendance(self) -> None:
         raise NotImplementedError("Workflow/UI will be implemented later")
 
