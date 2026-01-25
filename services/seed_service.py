@@ -36,6 +36,7 @@ class SeedService:
             email="lec1@sas.local",
         )
         lec_user.lecturer_id = "LEC001"
+        lec_user.classID = "1234567"
         lec_user.save(self.db)
 
         stu_user = Student.create(

@@ -33,17 +33,34 @@ class AuthRouter:
             else:
                 ConsoleIO.invalid_menu()
 
-    def _login_flow(self, *, max_attempts: int = 5) -> Optional[User]:
+    def _login_flow(self) -> Optional[User]:
         ConsoleIO.screen("LOGIN")
-        for _ in range(max_attempts):
-            username = ConsoleIO.ask("Username: ")
+        auth = AuthService(self.db)
+
+        while True:
+            username = ConsoleIO.ask("Username (0 to cancel): ")
+            if username == "0":
+                return None
+
             password = ConsoleIO.ask_password("Password: ")
             print("-" * 50)
-            user = AuthService(self.db).login(username, password)
+
+            user = auth.login(username, password)
             if user:
                 return user
+
+            if auth.last_error == "LOCKED":
+                # Khóa 5 phút sau 5 lần sai
+                if auth.remaining_seconds is not None:
+                    mins = max(1, (auth.remaining_seconds + 59) // 60)
+                    print(f"Account locked. Please try again after ~{mins} minute(s).")
+                else:
+                    print("Account locked. Please try again later.")
+                # trả về menu chính, không cho spam login liên tục
+                return None
+
             print("Username or password is incorrect.")
-        return None
+
 
     def _route(self, user: User) -> None:
         role = AuthService(self.db).detect_role(user.user_id)

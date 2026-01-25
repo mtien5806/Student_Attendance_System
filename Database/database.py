@@ -281,3 +281,11 @@ class Database:
             self.execute("CREATE INDEX IF NOT EXISTS idx_warning_student ON Warning(StudentUserID, createdAt);")
         except Exception:
             pass
+        # User security extras (failed attempts + lock time)
+        try:
+            if not has_column("User", "failedAttempts"):
+                self.execute("ALTER TABLE User ADD COLUMN failedAttempts INTEGER DEFAULT 0;")
+            if not has_column("User", "lockUntil"):
+                self.execute("ALTER TABLE User ADD COLUMN lockUntil TEXT;")
+        except Exception:
+            pass
