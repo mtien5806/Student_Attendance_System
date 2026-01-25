@@ -8,7 +8,10 @@ from ui.seed import Seeder
 
 
 def main() -> None:
-    db = Database("sas.db")
+    import os
+    db_path = os.path.join(os.path.dirname(__file__), "sas.db")
+    db = Database(db_path)
+
     db.initialize()
     db.ensure_schema_extras()
 

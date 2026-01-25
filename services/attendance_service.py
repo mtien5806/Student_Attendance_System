@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
+import re 
 
 from Database.database import Database, utc_now_iso
 from models.attendanceSession import AttendanceSession
@@ -17,6 +18,21 @@ from services.id_generator import IdGenerator
 @dataclass
 class AttendanceService:
     db: Database
+    @staticmethod
+    def normalize_session_id(raw: str) -> str:
+        s = (raw or "").strip()
+
+        # cho phép user paste "<S001>"
+        if s.startswith("<") and s.endswith(">"):
+            s = s[1:-1].strip()
+
+        # nếu user lỡ paste cả chuỗi dài, vẫn trích được Sxxx
+        m = re.search(r"(S\d+)", s, re.IGNORECASE)
+        if m:
+            return m.group(1).upper()
+
+        return s.upper()
+
 
     def count_warnings(self, student_user_id: str) -> int:
         row = self.db.query_one("SELECT COUNT(*) AS c FROM Warning WHERE StudentUserID=?", (student_user_id,))
@@ -109,6 +125,8 @@ class AttendanceService:
 
 
     def student_check_in(self, *, student_user_id: str, session_id: str, pin: Optional[str]) -> tuple[bool, str]:
+        session_id = self.normalize_session_id(session_id)
+        
         session = AttendanceSession.load_by_id(self.db, session_id)
         if not session:
             return False, "Session ID not found."
