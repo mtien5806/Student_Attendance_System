@@ -17,7 +17,7 @@ class Lecturer(User):
     """
 
     lecturer_id: str = ""
-    classID: str = ""
+    
 
     def save(self, db: Database) -> None:
         super().save(db)
