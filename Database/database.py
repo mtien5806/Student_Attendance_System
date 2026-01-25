@@ -176,6 +176,7 @@ class Database:
                 WarningID TEXT PRIMARY KEY,
                 StudentUserID TEXT NOT NULL,
                 systemName TEXT NOT NULL,
+                className TEXT,
                 message TEXT NOT NULL,
                 createdAt TEXT NOT NULL,
                 FOREIGN KEY (StudentUserID) REFERENCES Student(UserID) ON DELETE CASCADE,
@@ -190,6 +191,10 @@ class Database:
                 SessionID TEXT PRIMARY KEY,
                 LecturerUserID TEXT NOT NULL,
                 date TEXT NOT NULL,
+                startTime TEXT,
+                durationMinutes INTEGER,
+                requirePIN INTEGER,
+                pin TEXT,
                 className TEXT NOT NULL,
                 status TEXT NOT NULL,
                 createdAt TEXT NOT NULL,
@@ -221,8 +226,11 @@ class Database:
                 RequestID TEXT PRIMARY KEY,
                 StudentUserID TEXT NOT NULL,
                 LecturerUserID TEXT NOT NULL,
+                SessionID TEXT,
+                type TEXT,
                 status TEXT NOT NULL,
                 reason TEXT NOT NULL,
+                evidencePath TEXT,
                 note TEXT,
                 createdAt TEXT NOT NULL,
                 FOREIGN KEY (StudentUserID) REFERENCES Student(UserID) ON DELETE CASCADE,
@@ -245,3 +253,56 @@ class Database:
             );
             """
         )
+
+    def ensure_schema_extras(self) -> None:
+        """Safe migrations for console UI features (spec 8.1–8.8).
+
+        Adds missing columns used by attendance sessions (time/PIN), leave requests,
+        and warnings without breaking existing databases.
+        """
+
+        def has_column(table: str, col: str) -> bool:
+            rows = self.query_all(f"PRAGMA table_info({table});")
+            return any(r["name"] == col for r in rows)
+
+        # AttendanceSession extras
+        try:
+            if not has_column("AttendanceSession", "startTime"):
+                self.execute("ALTER TABLE AttendanceSession ADD COLUMN startTime TEXT;")
+            if not has_column("AttendanceSession", "durationMinutes"):
+                self.execute("ALTER TABLE AttendanceSession ADD COLUMN durationMinutes INTEGER;")
+            if not has_column("AttendanceSession", "requirePIN"):
+                self.execute("ALTER TABLE AttendanceSession ADD COLUMN requirePIN INTEGER;")
+            if not has_column("AttendanceSession", "pin"):
+                self.execute("ALTER TABLE AttendanceSession ADD COLUMN pin TEXT;")
+        except Exception:
+            # SQLite can't ALTER TABLE in some edge cases; ignore for safety.
+            pass
+
+        # LeaveRequest extras
+        try:
+            if not has_column("LeaveRequest", "SessionID"):
+                self.execute("ALTER TABLE LeaveRequest ADD COLUMN SessionID TEXT;")
+            if not has_column("LeaveRequest", "type"):
+                self.execute("ALTER TABLE LeaveRequest ADD COLUMN type TEXT;")
+            if not has_column("LeaveRequest", "evidencePath"):
+                self.execute("ALTER TABLE LeaveRequest ADD COLUMN evidencePath TEXT;")
+        except Exception:
+            pass
+
+        # Warning extras
+        try:
+            if not has_column("Warning", "className"):
+                self.execute("ALTER TABLE Warning ADD COLUMN className TEXT;")
+        except Exception:
+            pass
+
+        # Helpful indexes
+        try:
+            self.execute("CREATE INDEX IF NOT EXISTS idx_record_session ON AttendanceRecord(SessionID);")
+            self.execute("CREATE INDEX IF NOT EXISTS idx_record_student ON AttendanceRecord(StudentUserID);")
+            self.execute("CREATE INDEX IF NOT EXISTS idx_session_class ON AttendanceSession(className, date);")
+            self.execute("CREATE INDEX IF NOT EXISTS idx_leave_lecturer ON LeaveRequest(LecturerUserID, status);")
+            self.execute("CREATE INDEX IF NOT EXISTS idx_warning_student ON Warning(StudentUserID, createdAt);")
+        except Exception:
+            pass

@@ -3,47 +3,71 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from Database.database import Database, new_uuid, utc_now_iso
+from Database.database import Database, utc_now_iso
 
 
 @dataclass
 class AttendanceSession:
+    """Represents an attendance session (spec 8.6.1)."""
+
     session_id: str
     lecturer_user_id: str
     date: str  # YYYY-MM-DD
     class_name: str
-    status: str  # OPEN/CLOSED/...
-    created_at: str  # ISO datetime
+    status: str  # OPEN/CLOSED
+    created_at: str  # ISO datetime (UTC)
+
+    # Optional fields (added by ensure_schema_extras)
+    start_time: Optional[str] = None  # HH:MM
+    duration_minutes: Optional[int] = None
+    require_pin: bool = False
+    pin: Optional[str] = None
 
     @classmethod
     def create(
         cls,
         *,
+        session_id: str,
         lecturer_user_id: str,
-        date: str,
         class_name: str,
+        date: str,
+        start_time: Optional[str],
+        duration_minutes: Optional[int],
+        require_pin: bool,
+        pin: Optional[str],
         status: str = "OPEN",
     ) -> "AttendanceSession":
         return cls(
-            session_id=new_uuid(),
+            session_id=session_id,
             lecturer_user_id=lecturer_user_id,
             date=date,
             class_name=class_name,
             status=status,
             created_at=utc_now_iso(),
+            start_time=start_time,
+            duration_minutes=duration_minutes,
+            require_pin=require_pin,
+            pin=pin,
         )
 
     def save(self, db: Database) -> None:
         db.execute(
             """
-            INSERT INTO AttendanceSession (SessionID, LecturerUserID, date, className, status, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO AttendanceSession (
+                SessionID, LecturerUserID, date, className, status, createdAt,
+                startTime, durationMinutes, requirePIN, pin
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(SessionID) DO UPDATE SET
                 LecturerUserID=excluded.LecturerUserID,
                 date=excluded.date,
                 className=excluded.className,
                 status=excluded.status,
-                createdAt=excluded.createdAt
+                createdAt=excluded.createdAt,
+                startTime=excluded.startTime,
+                durationMinutes=excluded.durationMinutes,
+                requirePIN=excluded.requirePIN,
+                pin=excluded.pin
             """,
             (
                 self.session_id,
@@ -52,6 +76,10 @@ class AttendanceSession:
                 self.class_name,
                 self.status,
                 self.created_at,
+                self.start_time,
+                self.duration_minutes,
+                1 if self.require_pin else 0,
+                self.pin,
             ),
         )
 
@@ -70,6 +98,12 @@ class AttendanceSession:
 
     @classmethod
     def from_row(cls, row) -> "AttendanceSession":
+        def _col(name: str, default=None):
+            try:
+                return row[name]
+            except Exception:
+                return default
+
         return cls(
             session_id=row["SessionID"],
             lecturer_user_id=row["LecturerUserID"],
@@ -77,8 +111,12 @@ class AttendanceSession:
             class_name=row["className"],
             status=row["status"],
             created_at=row["createdAt"],
+            start_time=_col("startTime"),
+            duration_minutes=_col("durationMinutes"),
+            require_pin=bool(_col("requirePIN", 0) or 0),
+            pin=_col("pin"),
         )
 
-    def close_session(self, db: Database) -> None:
+    def close(self, db: Database) -> None:
         self.status = "CLOSED"
         self.save(db)

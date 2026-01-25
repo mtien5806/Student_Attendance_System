@@ -3,16 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from Database.database import Database, new_uuid, utc_now_iso
+from Database.database import Database, utc_now_iso
 
 
 @dataclass
 class LeaveRequest:
-    request_id: str
+    """Absence/Late request (spec 8.5.3, 8.6.3)."""
+
+    request_id: str  # R012 style handled by service
     student_user_id: str
     lecturer_user_id: str
+    session_id: Optional[str]
+    request_type: str  # Absent/Late
     status: str  # PENDING/APPROVED/REJECTED
     reason: str
+    evidence_path: Optional[str] = None
     note: Optional[str] = None
     created_at: str = ""
 
@@ -20,18 +25,25 @@ class LeaveRequest:
     def create(
         cls,
         *,
+        request_id: str,
         student_user_id: str,
         lecturer_user_id: str,
+        session_id: Optional[str],
+        request_type: str,
         reason: str,
         status: str = "PENDING",
+        evidence_path: Optional[str] = None,
         note: Optional[str] = None,
     ) -> "LeaveRequest":
         return cls(
-            request_id=new_uuid(),
+            request_id=request_id,
             student_user_id=student_user_id,
             lecturer_user_id=lecturer_user_id,
+            session_id=session_id,
+            request_type=request_type,
             status=status,
             reason=reason,
+            evidence_path=evidence_path,
             note=note,
             created_at=utc_now_iso(),
         )
@@ -39,13 +51,18 @@ class LeaveRequest:
     def save(self, db: Database) -> None:
         db.execute(
             """
-            INSERT INTO LeaveRequest (RequestID, StudentUserID, LecturerUserID, status, reason, note, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO LeaveRequest (
+                RequestID, StudentUserID, LecturerUserID, SessionID, type, status, reason, evidencePath, note, createdAt
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(RequestID) DO UPDATE SET
                 StudentUserID=excluded.StudentUserID,
                 LecturerUserID=excluded.LecturerUserID,
+                SessionID=excluded.SessionID,
+                type=excluded.type,
                 status=excluded.status,
                 reason=excluded.reason,
+                evidencePath=excluded.evidencePath,
                 note=excluded.note,
                 createdAt=excluded.createdAt
             """,
@@ -53,8 +70,11 @@ class LeaveRequest:
                 self.request_id,
                 self.student_user_id,
                 self.lecturer_user_id,
+                self.session_id,
+                self.request_type,
                 self.status,
                 self.reason,
+                self.evidence_path,
                 self.note,
                 self.created_at,
             ),
@@ -93,16 +113,37 @@ class LeaveRequest:
 
     @classmethod
     def from_row(cls, row) -> "LeaveRequest":
+        def _col(*names: str, default=None):
+            for name in names:
+                try:
+                    v = row[name]
+                    if v is not None:
+                        return v
+                except Exception:
+                    pass
+            return default
+
+        req_type = _col("type", "request_type", "RequestType", default="Absent")
+        req_type = str(req_type)  # đảm bảo luôn là str -> hết warning + không None
+
         return cls(
-            request_id=row["RequestID"],
-            student_user_id=row["StudentUserID"],
-            lecturer_user_id=row["LecturerUserID"],
-            status=row["status"],
-            reason=row["reason"],
-            note=row["note"],
-            created_at=row["createdAt"],
+            request_id=str(_col("RequestID", "request_id", default="")),
+            student_user_id=str(_col("StudentUserID", "student_user_id", default="")),
+            lecturer_user_id=str(_col("LecturerUserID", "lecturer_user_id", default="")),
+            session_id=_col("SessionID", "session_id", default=None),
+            request_type=req_type, 
+            status=str(_col("status", default="PENDING")),
+            reason=str(_col("reason", default="")),
+            evidence_path=_col("evidencePath", "evidence_path", default=None),
+            note=_col("note", default=None),
+            created_at=str(_col("createdAt", "created_at", default="")),
         )
 
-    def set_status(self, db: Database, status: str) -> None:
+ 
+
+    def set_status(self, db: Database, status: str, *, note: Optional[str] = None) -> None:
         self.status = status
+        if note is not None:
+            self.note = note
         self.save(db)
+    

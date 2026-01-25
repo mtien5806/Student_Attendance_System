@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Self
+
 
 from Database.database import Database, hash_password, new_uuid, verify_password
 
@@ -34,7 +35,7 @@ class User:
         address: Optional[str] = None,
         birth_date: Optional[str] = None,
         user_id: Optional[str] = None,
-    ) -> "User":
+    ) -> Self:  
         return cls(
             user_id=user_id or new_uuid(),
             full_name=full_name,
@@ -73,17 +74,17 @@ class User:
         )
 
     @classmethod
-    def load_by_id(cls, db: Database, user_id: str) -> Optional["User"]:
+    def load_by_id(cls, db: Database, user_id: str) -> Optional[Self]:  
         row = db.query_one("SELECT * FROM User WHERE UserID=?", (user_id,))
         return cls.from_row(row) if row else None
 
     @classmethod
-    def load_by_username(cls, db: Database, username: str) -> Optional["User"]:
+    def load_by_username(cls, db: Database, username: str) -> Optional[Self]:  
         row = db.query_one("SELECT * FROM User WHERE username=?", (username,))
         return cls.from_row(row) if row else None
 
     @classmethod
-    def from_row(cls, row) -> "User":
+    def from_row(cls, row) -> Self:  
         return cls(
             user_id=row["UserID"],
             full_name=row["fullname"],

@@ -3,32 +3,21 @@ from __future__ import annotations
 import sys
 
 from Database.database import Database
-from console_ui import (
-    bootstrap_message_if_empty,
-    login_flow,
-    role_menu_router,
-    seed_demo_data,
-)
+from ui.auth_router import AuthRouter
+from ui.seed import Seeder
 
 
 def main() -> None:
     db = Database("sas.db")
     db.initialize()
+    db.ensure_schema_extras()
 
     if "--seed" in sys.argv:
-        seed_demo_data(db)
+        Seeder(db).run()
         db.close()
         return
 
-    bootstrap_message_if_empty(db)
-
-    user = login_flow(db, max_attempts=5)
-    if not user:
-        db.close()
-        return
-
-    role_menu_router(db, user)
-    db.close()
+    AuthRouter(db).run()
 
 
 if __name__ == "__main__":
