@@ -25,7 +25,7 @@ class ConsoleIO:
 
     @staticmethod
     def screen(tag: str) -> None:
-        print(f"[{tag}]")  # spec style
+        print(f"[{tag}]")  
 
     @staticmethod
     def ask(prompt: str, *, allow_blank: bool = False) -> str:

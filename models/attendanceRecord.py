@@ -11,7 +11,7 @@ class AttendanceRecord:
     record_id: str
     session_id: str
     student_user_id: str
-    status: str  # Present/Late/Absent/Excused
+    status: str  
     check_time: Optional[str] = None
     note: Optional[str] = None
     updated_at: str = ""

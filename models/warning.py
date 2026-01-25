@@ -10,12 +10,12 @@ from Database.database import Database
 class Warning:
     """Attendance warning shown in Student dashboard (spec 8.5.4)."""
 
-    warning_id: str  # W003 style handled by service
+    warning_id: str 
     student_user_id: str
     system_name: str
     class_name: Optional[str]
     message: str
-    created_at: str  # ISO datetime
+    created_at: str  
 
     def save(self, db: Database) -> None:
         db.execute(

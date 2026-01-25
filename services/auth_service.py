@@ -12,7 +12,6 @@ Role = Literal["student", "lecturer", "admin", "unknown"]
 
 def _parse_iso(dt_s: str) -> Optional[datetime]:
     try:
-        # stored as "YYYY-MM-DD HH:MM:SS" (no timezone)
         return datetime.fromisoformat(dt_s)
     except Exception:
         return None
@@ -26,10 +25,10 @@ def _utc_now() -> datetime:
 class AuthService:
     db: Database
 
-    # UI đọc để biết lỗi gì (không đổi signature login)
-    last_error: Optional[str] = None         # "INVALID" | "LOCKED" | None
-    locked_until: Optional[str] = None       # ISO string nếu bị khóa
-    remaining_seconds: Optional[int] = None  # còn bao nhiêu giây nếu bị khóa
+    
+    last_error: Optional[str] = None       
+    locked_until: Optional[str] = None       
+    remaining_seconds: Optional[int] = None  
 
     def login(self, username: str, password: str) -> Optional[User]:
         """
@@ -60,12 +59,10 @@ class AuthService:
                     self.remaining_seconds = int((lock_dt - now).total_seconds())
                     return None
             else:
-                # dữ liệu lockUntil hỏng format -> xóa để tránh kẹt
                 self.db.execute("UPDATE User SET lockUntil=NULL WHERE UserID=?", (user_id,))
 
         ok = verify_password(password, row["password"])
         if ok:
-            # login đúng -> reset bộ đếm và mở khóa
             self.db.execute(
                 "UPDATE User SET failedAttempts=0, lockUntil=NULL WHERE UserID=?",
                 (user_id,),
@@ -87,7 +84,7 @@ class AuthService:
             self.remaining_seconds = int((lock_dt - _utc_now()).total_seconds())
             return None
 
-        # chưa tới 5 lần
+        
         self.db.execute(
             "UPDATE User SET failedAttempts=? WHERE UserID=?",
             (failed, user_id),

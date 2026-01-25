@@ -20,21 +20,19 @@ class AttendanceService:
     db: Database
 
     def __post_init__(self) -> None:
-        # đảm bảo schema extras (nếu Database có hàm này)
+
         ensure = getattr(self.db, "ensure_schema_extras", None)
         if callable(ensure):
             ensure()
 
-    # ---------------------------
-    # Helpers (normalize inputs)
-    # ---------------------------
+   
     @staticmethod
     def normalize_session_id(raw: str) -> str:
         s = (raw or "").strip()
         if s.startswith("<") and s.endswith(">"):
             s = s[1:-1].strip()
 
-        # nếu user paste cả chuỗi dài, vẫn trích được Sxxx
+      
         m = re.search(r"(S\d+)", s, re.IGNORECASE)
         if m:
             return m.group(1).upper()
@@ -45,9 +43,7 @@ class AttendanceService:
     def normalize_student_id(raw: str) -> str:
         return (raw or "").strip().upper()
 
-    # ---------------------------
-    # Dashboard counters
-    # ---------------------------
+  
     def count_warnings(self, student_user_id: str) -> int:
         row = self.db.query_one("SELECT COUNT(*) AS c FROM Warning WHERE StudentUserID=?", (student_user_id,))
         return int(row["c"]) if row else 0
@@ -66,9 +62,6 @@ class AttendanceService:
         )
         return int(row["c"]) if row else 0
 
-    # ---------------------------
-    # Lecturer: Create / Close session
-    # ---------------------------
     def create_session(
         self,
         *,
@@ -105,10 +98,10 @@ class AttendanceService:
         session.status = "CLOSED"
         session.save(self.db)
 
-        # Ensure Absent records for students without any record in that session
+     
         self._ensure_absent_records_on_close(session=session)
 
-        # After close, run warning checks
+
         self.generate_warnings_for_all_students(class_name=session.class_name, threshold_absent=3)
         return True
 
@@ -133,7 +126,7 @@ class AttendanceService:
     def is_session_open(self, session: AttendanceSession) -> bool:
         if session.status != "OPEN":
             return False
-        # If we have time/duration, treat as expired after end time.
+       
         if session.start_time and session.duration_minutes:
             try:
                 start = datetime.strptime(f"{session.date} {session.start_time}", "%Y-%m-%d %H:%M")
@@ -144,9 +137,7 @@ class AttendanceService:
                 pass
         return True
 
-    # ---------------------------
-    # Student: Take attendance / View / Submit request
-    # ---------------------------
+
     def student_check_in(self, *, student_user_id: str, session_id: str, pin: Optional[str]) -> tuple[bool, str]:
         session_id = self.normalize_session_id(session_id)
 
@@ -282,8 +273,7 @@ class AttendanceService:
         new_status = "APPROVED" if approve else "REJECTED"
         req.set_status(self.db, new_status, note=lecturer_comment)
 
-        # If approved, sync attendance record:
-        # approved Absent -> Excused, approved Late -> Late
+     
         if new_status == "APPROVED" and req.session_id:
             sid = self.normalize_session_id(req.session_id)
             att_status = "Excused" if req.request_type == "Absent" else "Late"
@@ -307,9 +297,7 @@ class AttendanceService:
 
         return True, f"Request {new_status}."
 
-    # ---------------------------
-    # Lecturer: Record attendance
-    # ---------------------------
+
     def list_session_students(self, session_id: str) -> list[dict]:
         session_id = self.normalize_session_id(session_id)
 
@@ -342,17 +330,16 @@ class AttendanceService:
         student_id: str,
         status: str,
         note: Optional[str],
-        create_if_missing: bool = True,   # ✅ để đúng "Add missing" vs "Edit"
+        create_if_missing: bool = True,   
     ) -> tuple[bool, str]:
         session_id = self.normalize_session_id(session_id)
         student_id = self.normalize_student_id(student_id)
 
-        # ✅ VALIDATE session tồn tại trước -> tránh FK constraint failed
         s_exist = self.db.query_one("SELECT 1 FROM AttendanceSession WHERE SessionID=?", (session_id,))
         if not s_exist:
             return False, "Session ID not found."
 
-        # Find student user
+       
         s = self.db.query_one("SELECT UserID FROM Student WHERE StudentID=?", (student_id,))
         if not s:
             return False, "Student ID not found."
@@ -369,7 +356,7 @@ class AttendanceService:
                 rec.save(self.db)
                 return True, "Updated."
 
-            # record chưa có
+            
             if not create_if_missing:
                 return False, "Attendance record not found."
 
@@ -414,9 +401,7 @@ class AttendanceService:
 
         return True, "Batch updated."
 
-    # ---------------------------
-    # Summaries / Export
-    # ---------------------------
+ 
     def summarize_class(
         self,
         *,
@@ -508,9 +493,6 @@ class AttendanceService:
             return False, f"Export failed: {e}"
         return True, "Export completed successfully."
 
-    # ---------------------------
-    # Warnings
-    # ---------------------------
     def generate_warnings_for_all_students(self, *, class_name: str, threshold_absent: int = 3) -> None:
         rows = self.db.query_all(
             """
@@ -550,9 +532,7 @@ class AttendanceService:
                 created_at=utc_now_iso(),
             ).save(self.db)
 
-    # ---------------------------
-    # Admin: Search / Delete
-    # ---------------------------
+
     def search_attendance_records(
         self,
         *,

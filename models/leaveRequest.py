@@ -14,8 +14,8 @@ class LeaveRequest:
     student_user_id: str
     lecturer_user_id: str
     session_id: Optional[str]
-    request_type: str  # Absent/Late
-    status: str  # PENDING/APPROVED/REJECTED
+    request_type: str 
+    status: str 
     reason: str
     evidence_path: Optional[str] = None
     note: Optional[str] = None
@@ -124,7 +124,7 @@ class LeaveRequest:
             return default
 
         req_type = _col("type", "request_type", "RequestType", default="Absent")
-        req_type = str(req_type)  # đảm bảo luôn là str -> hết warning + không None
+        req_type = str(req_type)  
 
         return cls(
             request_id=str(_col("RequestID", "request_id", default="")),

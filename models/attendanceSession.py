@@ -12,13 +12,13 @@ class AttendanceSession:
 
     session_id: str
     lecturer_user_id: str
-    date: str  # YYYY-MM-DD
+    date: str  
     class_name: str
-    status: str  # OPEN/CLOSED
-    created_at: str  # ISO datetime (UTC)
+    status: str 
+    created_at: str 
 
-    # Optional fields
-    start_time: Optional[str] = None  # HH:MM
+   
+    start_time: Optional[str] = None 
     duration_minutes: Optional[int] = None
     require_pin: bool = False
     pin: Optional[str] = None

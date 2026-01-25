@@ -61,7 +61,7 @@ class LecturerUI:
             )
             pin = p if p else None
 
-        # auto generate pin if required and not provided
+      
         if require_pin and not pin:
             import random
             pin = str(random.randint(1000, 999999))
@@ -86,7 +86,7 @@ class LecturerUI:
     def record_attendance(self, service: AttendanceService) -> None:
         ConsoleIO.screen("RECORD  ATTENDANCE")
         session_id = ConsoleIO.ask("Enter Session ID: ")
-        # verify session belongs to lecturer
+
         s = self.db.query_one("SELECT LecturerUserID FROM AttendanceSession WHERE SessionID=?", (session_id,))
         if not s:
             print("Session ID not found.")
