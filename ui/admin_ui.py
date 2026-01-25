@@ -104,7 +104,9 @@ class AdminUI:
             student_id=student_id,
             status=status,
             note=note,
+            create_if_missing=create_missing,
         )
+
         print(msg)
 
     def _delete_record(self, service: AttendanceService) -> None:

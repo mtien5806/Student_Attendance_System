@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
-import re 
+import re
+import sqlite3
 
 from Database.database import Database, utc_now_iso
 from models.attendanceSession import AttendanceSession
 from models.attendanceRecord import AttendanceRecord
 from models.leaveRequest import LeaveRequest
 from models.warning import Warning
-from models.user import User
 
 from services.id_generator import IdGenerator
 
@@ -18,22 +18,36 @@ from services.id_generator import IdGenerator
 @dataclass
 class AttendanceService:
     db: Database
+
+    def __post_init__(self) -> None:
+        # đảm bảo schema extras (nếu Database có hàm này)
+        ensure = getattr(self.db, "ensure_schema_extras", None)
+        if callable(ensure):
+            ensure()
+
+    # ---------------------------
+    # Helpers (normalize inputs)
+    # ---------------------------
     @staticmethod
     def normalize_session_id(raw: str) -> str:
         s = (raw or "").strip()
-
-        # cho phép user paste "<S001>"
         if s.startswith("<") and s.endswith(">"):
             s = s[1:-1].strip()
 
-        # nếu user lỡ paste cả chuỗi dài, vẫn trích được Sxxx
+        # nếu user paste cả chuỗi dài, vẫn trích được Sxxx
         m = re.search(r"(S\d+)", s, re.IGNORECASE)
         if m:
             return m.group(1).upper()
 
         return s.upper()
 
+    @staticmethod
+    def normalize_student_id(raw: str) -> str:
+        return (raw or "").strip().upper()
 
+    # ---------------------------
+    # Dashboard counters
+    # ---------------------------
     def count_warnings(self, student_user_id: str) -> int:
         row = self.db.query_one("SELECT COUNT(*) AS c FROM Warning WHERE StudentUserID=?", (student_user_id,))
         return int(row["c"]) if row else 0
@@ -52,7 +66,9 @@ class AttendanceService:
         )
         return int(row["c"]) if row else 0
 
-
+    # ---------------------------
+    # Lecturer: Create / Close session
+    # ---------------------------
     def create_session(
         self,
         *,
@@ -66,6 +82,7 @@ class AttendanceService:
     ) -> AttendanceSession:
         gen = IdGenerator(self.db)
         session_id = gen.next_id("S", "AttendanceSession", "SessionID", width=3)
+
         session = AttendanceSession.create(
             session_id=session_id,
             lecturer_user_id=lecturer_user_id,
@@ -81,24 +98,28 @@ class AttendanceService:
         return session
 
     def close_session(self, session_id: str, lecturer_user_id: str) -> bool:
+        session_id = self.normalize_session_id(session_id)
         session = AttendanceSession.load_by_id(self.db, session_id)
         if not session or session.lecturer_user_id != lecturer_user_id:
             return False
         session.status = "CLOSED"
         session.save(self.db)
-        # Ensure Absent records for non-check-in students 
+
+        # Ensure Absent records for students without any record in that session
         self._ensure_absent_records_on_close(session=session)
+
         # After close, run warning checks
         self.generate_warnings_for_all_students(class_name=session.class_name, threshold_absent=3)
         return True
 
-    
     def _ensure_absent_records_on_close(self, *, session: AttendanceSession) -> None:
         """When a session closes, create Absent records for students without any record in that session."""
         students = self.db.query_all("SELECT UserID FROM Student")
         for s in students:
             uid = s["UserID"]
-            existed = AttendanceRecord.load_by_session_and_student(self.db, session_id=session.session_id, student_user_id=uid)
+            existed = AttendanceRecord.load_by_session_and_student(
+                self.db, session_id=session.session_id, student_user_id=uid
+            )
             if existed:
                 continue
             AttendanceRecord.create(
@@ -123,10 +144,12 @@ class AttendanceService:
                 pass
         return True
 
-
+    # ---------------------------
+    # Student: Take attendance / View / Submit request
+    # ---------------------------
     def student_check_in(self, *, student_user_id: str, session_id: str, pin: Optional[str]) -> tuple[bool, str]:
         session_id = self.normalize_session_id(session_id)
-        
+
         session = AttendanceSession.load_by_id(self.db, session_id)
         if not session:
             return False, "Session ID not found."
@@ -205,7 +228,6 @@ class AttendanceService:
             )
         return items, summary
 
-  
     def submit_request(
         self,
         *,
@@ -215,6 +237,7 @@ class AttendanceService:
         reason: str,
         evidence_path: Optional[str],
     ) -> tuple[bool, str]:
+        session_id = self.normalize_session_id(session_id)
         session = AttendanceSession.load_by_id(self.db, session_id)
         if not session:
             return False, "Session ID not found."
@@ -259,22 +282,23 @@ class AttendanceService:
         new_status = "APPROVED" if approve else "REJECTED"
         req.set_status(self.db, new_status, note=lecturer_comment)
 
-        # If approved, sync attendance record (spec: approved Absent -> Excused, approved Late -> Late)
+        # If approved, sync attendance record:
+        # approved Absent -> Excused, approved Late -> Late
         if new_status == "APPROVED" and req.session_id:
+            sid = self.normalize_session_id(req.session_id)
             att_status = "Excused" if req.request_type == "Absent" else "Late"
             rec = AttendanceRecord.load_by_session_and_student(
-                self.db, session_id=req.session_id, student_user_id=req.student_user_id
+                self.db, session_id=sid, student_user_id=req.student_user_id
             )
             if rec:
                 rec.status = att_status
-                # keep check_time as-is; lecturer comment becomes note if provided
                 if lecturer_comment:
                     rec.note = lecturer_comment
                 rec.updated_at = utc_now_iso()
                 rec.save(self.db)
             else:
                 AttendanceRecord.create(
-                    session_id=req.session_id,
+                    session_id=sid,
                     student_user_id=req.student_user_id,
                     status=att_status,
                     check_time=None,
@@ -283,9 +307,12 @@ class AttendanceService:
 
         return True, f"Request {new_status}."
 
-
+    # ---------------------------
+    # Lecturer: Record attendance
+    # ---------------------------
     def list_session_students(self, session_id: str) -> list[dict]:
-        # Show current records for a session
+        session_id = self.normalize_session_id(session_id)
+
         rows = self.db.query_all(
             """
             SELECT s.UserID AS StudentUserID, s.StudentID, u.fullname,
@@ -299,7 +326,12 @@ class AttendanceService:
             (session_id,),
         )
         return [
-            {"StudentID": r["StudentID"], "StudentName": r["fullname"], "CurrentStatus": r["status"], "UserID": r["StudentUserID"]}
+            {
+                "StudentID": r["StudentID"],
+                "StudentName": r["fullname"],
+                "CurrentStatus": r["status"],
+                "UserID": r["StudentUserID"],
+            }
             for r in rows
         ]
 
@@ -310,37 +342,81 @@ class AttendanceService:
         student_id: str,
         status: str,
         note: Optional[str],
+        create_if_missing: bool = True,   # ✅ để đúng "Add missing" vs "Edit"
     ) -> tuple[bool, str]:
+        session_id = self.normalize_session_id(session_id)
+        student_id = self.normalize_student_id(student_id)
+
+        # ✅ VALIDATE session tồn tại trước -> tránh FK constraint failed
+        s_exist = self.db.query_one("SELECT 1 FROM AttendanceSession WHERE SessionID=?", (session_id,))
+        if not s_exist:
+            return False, "Session ID not found."
+
         # Find student user
         s = self.db.query_one("SELECT UserID FROM Student WHERE StudentID=?", (student_id,))
         if not s:
             return False, "Student ID not found."
         student_user_id = s["UserID"]
 
-        rec = AttendanceRecord.load_by_session_and_student(self.db, session_id=session_id, student_user_id=student_user_id)
-        if rec:
-            rec.status = status
-            rec.note = note
-            rec.updated_at = utc_now_iso()
-            rec.save(self.db)
-            return True, "Updated."
-        # create missing
-        rec = AttendanceRecord.create(session_id=session_id, student_user_id=student_user_id, status=status, check_time=None, note=note)
-        rec.save(self.db)
-        return True, "Created."
+        try:
+            rec = AttendanceRecord.load_by_session_and_student(
+                self.db, session_id=session_id, student_user_id=student_user_id
+            )
+            if rec:
+                rec.status = status
+                rec.note = note
+                rec.updated_at = utc_now_iso()
+                rec.save(self.db)
+                return True, "Updated."
 
-    def mark_all_present(self, session_id: str) -> None:
+            # record chưa có
+            if not create_if_missing:
+                return False, "Attendance record not found."
+
+            rec = AttendanceRecord.create(
+                session_id=session_id,
+                student_user_id=student_user_id,
+                status=status,
+                check_time=None,
+                note=note,
+            )
+            rec.save(self.db)
+            return True, "Created."
+
+        except sqlite3.IntegrityError:
+            return False, "Invalid SessionID/StudentID (foreign key failed)."
+        except Exception as e:
+            return False, f"Update failed: {e}"
+
+    def mark_all_present(self, session_id: str) -> tuple[bool, str]:
+        session_id = self.normalize_session_id(session_id)
+
+        s_exist = self.db.query_one("SELECT 1 FROM AttendanceSession WHERE SessionID=?", (session_id,))
+        if not s_exist:
+            return False, "Session ID not found."
+
         students = self.db.query_all("SELECT UserID FROM Student")
         for s in students:
             uid = s["UserID"]
             rec = AttendanceRecord.load_by_session_and_student(self.db, session_id=session_id, student_user_id=uid)
             if not rec:
-                AttendanceRecord.create(session_id=session_id, student_user_id=uid, status="Present", check_time=utc_now_iso(), note=None).save(self.db)
+                AttendanceRecord.create(
+                    session_id=session_id,
+                    student_user_id=uid,
+                    status="Present",
+                    check_time=utc_now_iso(),
+                    note=None,
+                ).save(self.db)
             else:
                 rec.status = "Present"
                 rec.updated_at = utc_now_iso()
                 rec.save(self.db)
 
+        return True, "Batch updated."
+
+    # ---------------------------
+    # Summaries / Export
+    # ---------------------------
     def summarize_class(
         self,
         *,
@@ -410,11 +486,10 @@ class AttendanceService:
 
         wb = Workbook()
         ws = wb.active
-        if ws is None:  # để Pylance hết báo + tránh None runtime
+        if ws is None:
             ws = wb.create_sheet(title="Attendance Report")
         else:
             ws.title = "Attendance Report"
-
 
         ws.append(["Course/Class ID", class_name])
         ws.append(["From", date_from or ""])
@@ -423,7 +498,9 @@ class AttendanceService:
         ws.append(["StudentID", "StudentName", "Present", "Late", "Absent", "Excused", "Attendance Rate"])
 
         for r in summary:
-            ws.append([r["StudentID"], r["StudentName"], r["Present"], r["Late"], r["Absent"], r["Excused"], r["AttendanceRate"]])
+            ws.append(
+                [r["StudentID"], r["StudentName"], r["Present"], r["Late"], r["Absent"], r["Excused"], r["AttendanceRate"]]
+            )
 
         try:
             wb.save(output_path)
@@ -431,8 +508,10 @@ class AttendanceService:
             return False, f"Export failed: {e}"
         return True, "Export completed successfully."
 
+    # ---------------------------
+    # Warnings
+    # ---------------------------
     def generate_warnings_for_all_students(self, *, class_name: str, threshold_absent: int = 3) -> None:
-    
         rows = self.db.query_all(
             """
             SELECT ar.StudentUserID, COUNT(*) AS AbsentCount
@@ -471,7 +550,9 @@ class AttendanceService:
                 created_at=utc_now_iso(),
             ).save(self.db)
 
-
+    # ---------------------------
+    # Admin: Search / Delete
+    # ---------------------------
     def search_attendance_records(
         self,
         *,
@@ -480,21 +561,19 @@ class AttendanceService:
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
     ) -> list[dict]:
-        """Search attendance records for Admin dashboard (spec 8.7.1)."""
         where = []
         params: list[object] = []
 
         if by == "student_id":
             where.append("st.StudentID=?")
-            params.append(keyword)
+            params.append(self.normalize_student_id(keyword))
         elif by == "session_id":
             where.append("ar.SessionID=?")
-            params.append(keyword)
+            params.append(self.normalize_session_id(keyword))
         elif by == "class_name":
             where.append("s.className=?")
             params.append(keyword)
         elif by == "date_range":
-            # keyword unused
             pass
         else:
             return []
@@ -536,9 +615,17 @@ class AttendanceService:
         ]
 
     def delete_attendance_record(self, *, session_id: str, student_id: str) -> tuple[bool, str]:
+        session_id = self.normalize_session_id(session_id)
+        student_id = self.normalize_student_id(student_id)
+
+        s_exist = self.db.query_one("SELECT 1 FROM AttendanceSession WHERE SessionID=?", (session_id,))
+        if not s_exist:
+            return False, "Session ID not found."
+
         s = self.db.query_one("SELECT UserID FROM Student WHERE StudentID=?", (student_id,))
         if not s:
             return False, "Student ID not found."
+
         self.db.execute(
             "DELETE FROM AttendanceRecord WHERE SessionID=? AND StudentUserID=?",
             (session_id, s["UserID"]),
