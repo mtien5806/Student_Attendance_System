@@ -10,7 +10,6 @@ from services.id_generator import IdGenerator
 
 @dataclass
 class System:
-    """Represents the system actor that can generate warnings."""
 
     system_name: str
 
@@ -37,10 +36,7 @@ class System:
         class_name: Optional[str],
         message: str,
     ) -> Warning:
-        """Create and persist a warning for a student.
-
-        Uses W### style IDs via IdGenerator (consistent with spec 8.5.4).
-        """
+       
         self.save(db)
         wid = IdGenerator(db).next_id("W", "Warning", "WarningID", width=3)
         warning = Warning(

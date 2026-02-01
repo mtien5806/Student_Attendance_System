@@ -7,10 +7,7 @@ from Database.database import Database
 
 @dataclass
 class IdGenerator:
-    """Generates human-friendly IDs like S001, R012, W003.
-
-    Stored IDs are TEXT, so this generator scans existing IDs and increments.
-    """
+   
 
     db: Database
 

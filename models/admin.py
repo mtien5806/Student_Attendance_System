@@ -9,12 +9,6 @@ from .user import User
 
 @dataclass
 class Administrator(User):
-    """Administrator role.
-
-    Table mapping:
-    - User (base)
-    - Administrator (role-specific)
-    """
 
     admin_id: str = ""
 

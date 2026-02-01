@@ -50,13 +50,11 @@ class AuthRouter:
                 return user
 
             if auth.last_error == "LOCKED":
-                # Khóa 5 phút sau 5 lần sai
                 if auth.remaining_seconds is not None:
                     mins = max(1, (auth.remaining_seconds + 59) // 60)
                     print(f"Account locked. Please try again after ~{mins} minute(s).")
                 else:
                     print("Account locked. Please try again later.")
-                # trả về menu chính, không cho spam login liên tục
                 return None
 
             print("Username or password is incorrect.")

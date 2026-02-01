@@ -9,13 +9,7 @@ from models.user import User
 
 @dataclass
 class Student(User):
-    """Student role.
-
-    Table mapping:
-    - User (base)
-    - Student (role-specific)
-    """
-
+ 
     student_id: str = ""
     major_name: Optional[str] = None
 

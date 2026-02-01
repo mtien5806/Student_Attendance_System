@@ -11,12 +11,10 @@ from typing import Any, Iterable, Optional
 
 
 def new_uuid() -> str:
-    """Return a UUID string suitable for VARCHAR(36) PKs."""
     return str(uuid.uuid4())
 
 
 def utc_now_iso() -> str:
-    """UTC timestamp in ISO format without timezone suffix (SQLite-friendly)."""
     return datetime.utcnow().replace(microsecond=0).isoformat(sep=" ")
 
 
@@ -32,10 +30,7 @@ class PasswordHash:
 
 
 def hash_password(password: str, *, iterations: int = 210_000, salt: bytes | None = None) -> str:
-    """Hash a password using PBKDF2-HMAC-SHA256.
-
-    Returns an encoded string that includes algorithm, iterations, and salt.
-    """
+    
     if salt is None:
         salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
@@ -44,7 +39,6 @@ def hash_password(password: str, *, iterations: int = 210_000, salt: bytes | Non
 
 
 def verify_password(password: str, encoded: str) -> bool:
-    """Verify a password against an encoded hash created by `hash_password`."""
     try:
         algo, iters_s, salt_hex, hash_hex = encoded.split("$", 3)
         if algo != "pbkdf2_sha256":
@@ -59,7 +53,6 @@ def verify_password(password: str, encoded: str) -> bool:
 
 
 class Database:
-    """Thin wrapper around sqlite3 with schema initialization."""
 
     def __init__(self, db_path: str = "sas.db") -> None:
         self.db_path = db_path
@@ -89,7 +82,6 @@ class Database:
         return cur.fetchall()
 
     def initialize(self) -> None:
-        """Create tables if they don't already exist."""
 
         self.execute(
             """
@@ -230,11 +222,6 @@ class Database:
         )
 
     def ensure_schema_extras(self) -> None:
-        """Safe migrations for console UI features (spec 8.1–8.8).
-
-        Adds missing columns used by attendance sessions (time/PIN), leave requests,
-        and warnings without breaking existing databases.
-        """
 
         def has_column(table: str, col: str) -> bool:
             rows = self.query_all(f"PRAGMA table_info({table});")
@@ -281,7 +268,6 @@ class Database:
             self.execute("CREATE INDEX IF NOT EXISTS idx_warning_student ON Warning(StudentUserID, createdAt);")
         except Exception:
             pass
-        # User security extras (failed attempts + lock time)
         try:
             if not has_column("User", "failedAttempts"):
                 self.execute("ALTER TABLE User ADD COLUMN failedAttempts INTEGER DEFAULT 0;")

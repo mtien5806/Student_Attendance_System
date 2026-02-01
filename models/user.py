@@ -9,10 +9,6 @@ from Database.database import Database, hash_password, new_uuid, verify_password
 
 @dataclass
 class User:
-    """Base user class.
-
-    Mirrors the `User` class in the class diagram and the `User` table in the ERD.
-    """
 
     user_id: str
     full_name: str

@@ -88,10 +88,6 @@ class SeedService:
             ]
 
     def seed_demo(self, *, reset: bool = False) -> bool:
-        """
-        - reset=False: seed theo kiểu upsert (chạy nhiều lần không lỗi)
-        - reset=True : xoá sạch dữ liệu demo cũ rồi seed lại
-        """
         System("SAS").save(self.db)
 
         if reset:
@@ -153,10 +149,7 @@ class SeedService:
         raise ValueError(f"Unknown role in seed data: {info['role']}")
 
     def _reset_all_data(self) -> None:
-        """
-        Xoá sạch dữ liệu để seed lại (theo thứ tự tránh lỗi FK).
-        Nếu DB bạn thiếu bảng nào thì cứ comment dòng tương ứng.
-        """
+     
       
         for table in [
             "AttendanceRecord",

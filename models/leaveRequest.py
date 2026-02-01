@@ -8,7 +8,7 @@ from Database.database import Database, utc_now_iso
 
 @dataclass
 class LeaveRequest:
-    """Absence/Late request (spec 8.5.3, 8.6.3)."""
+   
 
     request_id: str  
     student_user_id: str

@@ -8,7 +8,7 @@ from Database.database import Database, utc_now_iso
 
 @dataclass
 class AttendanceSession:
-    """Represents an attendance session (spec 8.6.1)."""
+   
 
     session_id: str
     lecturer_user_id: str

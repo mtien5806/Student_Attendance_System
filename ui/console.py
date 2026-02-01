@@ -15,7 +15,7 @@ class DateRange:
 
 
 class ConsoleIO:
-    """Console UI helpers that enforce the spec's input conventions."""
+
 
     @staticmethod
     def header(title: str) -> None:

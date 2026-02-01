@@ -8,7 +8,6 @@ from Database.database import Database
 
 @dataclass
 class Warning:
-    """Attendance warning shown in Student dashboard (spec 8.5.4)."""
 
     warning_id: str 
     student_user_id: str

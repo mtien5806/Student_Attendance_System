@@ -9,15 +9,10 @@ from models.user import User
 
 @dataclass
 class Lecturer(User):
-    """Lecturer role.
 
-    Table mapping:
-    - User (base)
-    - Lecturer (role-specific)
-    """
 
     lecturer_id: str = ""
-    
+
 
     def save(self, db: Database) -> None:
         super().save(db)
