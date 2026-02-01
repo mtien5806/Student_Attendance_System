@@ -17,7 +17,7 @@ class User:
     phone_number: Optional[str] = None
     address: Optional[str] = None
     username: str = ""
-    birth_date: Optional[str] = None  # YYYY-MM-DD
+    birth_date: Optional[str] = None 
 
     @classmethod
     def create(
@@ -94,10 +94,7 @@ class User:
 
     @staticmethod
     def login(db: Database, username: str, password: str) -> Optional["User"]:
-        """Authenticate user.
-
-        Returns the User if credentials are valid, else None.
-        """
+      
         user = User.load_by_username(db, username)
         if not user:
             return None
